@@ -411,7 +411,20 @@ Note: the R10 exposes standard BLE GATT services, so no special permissions are 
 
 ### Run as a service (optional, systemd)
 
-Create `/etc/systemd/system/r10-bridge.service`:
+Easiest: let `run.sh` do it. From the source checkout on the Pi (after pairing once with a plain `./run.sh`):
+```bash
+./run.sh --install-service
+```
+This builds a self-contained binary into `/opt/r10-bridge`, installs and enables a `r10-bridge` systemd unit (auto-start on boot, restart on failure, runs as your user), and prints the management commands. It won't overwrite an existing `/opt/r10-bridge/settings.json`, so your config survives reinstalls.
+
+**Where do the logs go?** The bridge logs to stdout only (no log file). Under systemd that stdout is captured by the journal:
+```bash
+journalctl -u r10-bridge -f            # follow live
+journalctl -u r10-bridge --since today # today's logs
+```
+To keep logs across reboots, enable a persistent journal once: `sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald`. (Run in the foreground instead and logs just go to your terminal.)
+
+To do it by hand instead, create `/etc/systemd/system/r10-bridge.service`:
 ```ini
 [Unit]
 Description=R10 Bridge

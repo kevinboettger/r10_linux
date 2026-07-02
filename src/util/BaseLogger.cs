@@ -16,7 +16,7 @@ namespace r10_bridge
     {
       lock (lockObject)
       {
-        Console.Write($"{DateTime.Now.ToString("HH:MM:ss.fff")} ");
+        Console.Write($"{DateTime.Now.ToString("HH:mm:ss.fff")} ");
         Console.ForegroundColor = color;
         Console.Write($"{component.PadLeft(6)} ");
         Console.ResetColor();
