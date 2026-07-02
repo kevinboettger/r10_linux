@@ -25,6 +25,10 @@ dotnet publish "${BASE_DIR}/r10-bridge.csproj" \
   -c Release \
   --self-contained true
 
+# Ship the one-shot launcher next to the binary.
+cp "${BASE_DIR}/run.sh" "${PUBLISH_DIR}/run.sh"
+chmod +x "${PUBLISH_DIR}/run.sh"
+
 zip -j "${OUTDIR}/r10-bridge-v${VERSION}-linux-arm64-bluetooth-enabled.zip" "${PUBLISH_DIR}"/*
 
 # Also emit a variant with Bluetooth disabled (HTTP/TCP only) for testing without a device.

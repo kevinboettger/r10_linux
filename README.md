@@ -364,6 +364,17 @@ Local quick run on your dev machine (x64):
 dotnet run          # HTTP/TCP start immediately; Bluetooth needs BlueZ + an R10
 ```
 
+### Quickstart: one command (`run.sh`)
+
+The publish zip includes a launcher that does everything below in one shot. On the Pi, after unzipping:
+
+```bash
+chmod +x run.sh r10-bridge
+./run.sh
+```
+
+It starts the bluetooth service, auto-pairs + trusts the R10 if it isn't already paired (turn the R10 on first — it uses the name from `settings.json`), then launches the bridge. Re-run it any time; if the R10 is already paired it skips straight to launch. The manual steps below are the fallback if you'd rather do it by hand or auto-pairing fails.
+
 ### Pairing the R10 (one-time, on the Pi)
 
 Bluetooth pairing is an OS responsibility; the bridge only connects to an already-paired device.
