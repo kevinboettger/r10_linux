@@ -112,10 +112,13 @@ fi
 
 # --- desktop icon installer ---------------------------------------------------
 install_icon() {
-  local desktop_dir icon_file wrapper
+  local desktop_dir icon_file wrapper icon_img
   desktop_dir="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
   mkdir -p "$desktop_dir"
-  icon_file="$desktop_dir/Connect-R10.desktop"
+  icon_file="$desktop_dir/R10-Bridge.desktop"
+  icon_img="$SCRIPT_DIR/assets/r10-bridge.svg"
+  # Remove the older-named launcher if it exists.
+  rm -f "$desktop_dir/Connect-R10.desktop"
 
   # A wrapper keeps the terminal window OPEN after the run ends, so output and
   # any errors stay visible instead of flashing closed.
@@ -134,9 +137,9 @@ WRAPEOF
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=Connect R10
+Name=R10 Bridge
 Comment=Reconnect the Garmin Approach R10 and start the bridge
-Icon=bluetooth
+Icon=$icon_img
 Exec=$wrapper
 Path=$SCRIPT_DIR
 Terminal=true
@@ -148,7 +151,7 @@ ICONEOF
   gio set "$icon_file" metadata::trusted true 2>/dev/null || true
 
   ok "Desktop icon created: $icon_file"
-  info "Double-click 'Connect R10' on your desktop any time to reconnect + start the bridge."
+  info "Double-click 'R10 Bridge' on your desktop any time to reconnect + start the bridge."
   info "If the desktop asks the first time, choose 'Execute' / 'Trust'."
 }
 
