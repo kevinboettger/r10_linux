@@ -153,8 +153,17 @@ else
   fi
 
   info "Found $MAC. Pairing + trusting..."
-  bluetoothctl pair "$MAC"  >/dev/null 2>&1 || true
-  bluetoothctl trust "$MAC" >/dev/null 2>&1 || true
+  # Pair inside a single bluetoothctl session with an agent registered. The R10
+  # uses "Just Works" pairing (no PIN), which needs an agent; separate one-shot
+  # `bluetoothctl pair` calls have none and fail silently.
+  {
+    echo "power on";      sleep 1
+    echo "agent on";      sleep 1
+    echo "default-agent"; sleep 1
+    echo "pair $MAC";     sleep 8
+    echo "trust $MAC";    sleep 2
+    echo "quit"
+  } | bluetoothctl >/dev/null 2>&1 || true
 
   if [[ -n "$(paired_mac)" ]]; then
     ok "Paired and trusted '$DEVICE_NAME' ($MAC)."
