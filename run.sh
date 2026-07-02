@@ -112,10 +112,23 @@ fi
 
 # --- desktop icon installer ---------------------------------------------------
 install_icon() {
-  local desktop_dir icon_file
+  local desktop_dir icon_file wrapper
   desktop_dir="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
   mkdir -p "$desktop_dir"
   icon_file="$desktop_dir/Connect-R10.desktop"
+
+  # A wrapper keeps the terminal window OPEN after the run ends, so output and
+  # any errors stay visible instead of flashing closed.
+  wrapper="$HOME/.local/bin/connect-r10.sh"
+  mkdir -p "$(dirname "$wrapper")"
+  cat > "$wrapper" <<WRAPEOF
+#!/bin/bash
+cd "$SCRIPT_DIR" || exit 1
+./run.sh
+echo
+read -n1 -s -r -p "Press any key to close this window..."
+WRAPEOF
+  chmod +x "$wrapper"
 
   cat > "$icon_file" <<ICONEOF
 [Desktop Entry]
@@ -124,7 +137,7 @@ Version=1.0
 Name=Connect R10
 Comment=Reconnect the Garmin Approach R10 and start the bridge
 Icon=bluetooth
-Exec=$SCRIPT_DIR/run.sh
+Exec=$wrapper
 Path=$SCRIPT_DIR
 Terminal=true
 Categories=Utility;
