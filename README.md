@@ -417,12 +417,13 @@ Easiest: let `run.sh` do it. From the source checkout on the Pi (after pairing o
 ```
 This builds a self-contained binary into `/opt/r10-bridge`, installs and enables a `r10-bridge` systemd unit (auto-start on boot, restart on failure, runs as your user), and prints the management commands. It won't overwrite an existing `/opt/r10-bridge/settings.json`, so your config survives reinstalls.
 
-**Where do the logs go?** The bridge logs to stdout only (no log file). Under systemd that stdout is captured by the journal:
-```bash
-journalctl -u r10-bridge -f            # follow live
-journalctl -u r10-bridge --since today # today's logs
-```
-To keep logs across reboots, enable a persistent journal once: `sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald`. (Run in the foreground instead and logs just go to your terminal.)
+**Where do the logs go?** Two places, always:
+- A dated **log file** next to the app: `logs/r10-bridge-YYYY-MM-DD.log` (under the working directory — `/opt/r10-bridge/logs/` for the service). The exact path is printed at startup (`Writing log to …`). Tail it with `tail -f logs/r10-bridge-*.log`.
+- The **console** — your terminal in the foreground, or the systemd **journal** for the service:
+  ```bash
+  journalctl -u r10-bridge -f            # follow live
+  journalctl -u r10-bridge --since today # today's logs
+  ```
 
 To do it by hand instead, create `/etc/systemd/system/r10-bridge.service`:
 ```ini

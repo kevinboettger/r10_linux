@@ -64,6 +64,8 @@ install_service() {
   else
     sudo cp "$SCRIPT_DIR/.publish/settings.json" "$INSTALL_DIR/"
   fi
+  # Let the service user own the dir so it can write logs to $INSTALL_DIR/logs.
+  sudo chown -R "$RUN_USER" "$INSTALL_DIR"
 
   info "Writing systemd unit $UNIT ..."
   sudo tee "$UNIT" >/dev/null <<UNITEOF
@@ -163,7 +165,15 @@ else
 fi
 
 # --- 3. launch ----------------------------------------------------------------
-info "Starting R10 Bridge (Ctrl-C or Enter to stop)..."
+# If the background service is running it already holds the R10 + the ports, so a
+# foreground run would clash. Stop it so this terminal can take over cleanly.
+if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet r10-bridge 2>/dev/null; then
+  warn "Background service 'r10-bridge' is running; stopping it so this run can use the R10."
+  warn "(It will start again on next boot. To keep it off:  sudo systemctl disable r10-bridge)"
+  sudo systemctl stop r10-bridge
+fi
+
+info "Starting R10 Bridge (Ctrl-C or Enter to stop). Logs also saved under ./logs/"
 echo
 if [[ -x "$SCRIPT_DIR/r10-bridge" ]]; then
   exec "$SCRIPT_DIR/r10-bridge"

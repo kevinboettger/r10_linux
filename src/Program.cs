@@ -21,7 +21,11 @@ namespace r10_bridge
       }
 
       IConfigurationRoot configuration = builder.Build();
-      
+
+      BaseLogger.InitFileLogging();
+      if (BaseLogger.LogFilePath != null)
+        BaseLogger.LogMessage($"Writing log to {BaseLogger.LogFilePath}", "Main");
+
       bool interactive = !Console.IsInputRedirected;
       if (interactive)
         Console.Title = "R10 Bridge";
