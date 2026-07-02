@@ -19,13 +19,16 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 MODE="run"
-if [[ "${1:-}" == "--install-service" ]]; then
-  MODE="install"
-elif [[ -n "${1:-}" ]]; then
-  echo "Unknown option: $1"
-  echo "Usage: ./run.sh [--install-service]"
-  exit 2
-fi
+case "${1:-}" in
+  "")                 MODE="run" ;;
+  --install-service)  MODE="install" ;;
+  --install-icon)     MODE="icon" ;;
+  *)
+    echo "Unknown option: $1"
+    echo "Usage: ./run.sh [--install-service] [--install-icon]"
+    exit 2
+    ;;
+esac
 
 # --- pretty logging -----------------------------------------------------------
 c() { printf '\033[%sm%s\033[0m\n' "$1" "$2"; }
@@ -104,6 +107,40 @@ UNITEOF
 
 if [[ "$MODE" == "install" ]]; then
   install_service
+  exit 0
+fi
+
+# --- desktop icon installer ---------------------------------------------------
+install_icon() {
+  local desktop_dir icon_file
+  desktop_dir="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
+  mkdir -p "$desktop_dir"
+  icon_file="$desktop_dir/Connect-R10.desktop"
+
+  cat > "$icon_file" <<ICONEOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Connect R10
+Comment=Reconnect the Garmin Approach R10 and start the bridge
+Icon=bluetooth
+Exec=$SCRIPT_DIR/run.sh
+Path=$SCRIPT_DIR
+Terminal=true
+Categories=Utility;
+ICONEOF
+
+  chmod +x "$icon_file"
+  # Mark it trusted so double-clicking runs it without the "untrusted launcher" prompt.
+  gio set "$icon_file" metadata::trusted true 2>/dev/null || true
+
+  ok "Desktop icon created: $icon_file"
+  info "Double-click 'Connect R10' on your desktop any time to reconnect + start the bridge."
+  info "If the desktop asks the first time, choose 'Execute' / 'Trust'."
+}
+
+if [[ "$MODE" == "icon" ]]; then
+  install_icon
   exit 0
 fi
 
