@@ -71,9 +71,13 @@ namespace r10_bridge.bluetooth.ble
 
         foreach (Device device in devices)
         {
-          bool paired = false;
+          // The R10 will connect even when BlueZ hasn't bonded it (Paired=false),
+          // as long as it's a known/trusted device. Accept paired OR trusted so a
+          // trusted-but-unbonded R10 is still found.
+          bool paired = false, trusted = false;
           try { paired = await device.GetPairedAsync(); } catch { /* ignore */ }
-          if (!paired)
+          try { trusted = await device.GetTrustedAsync(); } catch { /* ignore */ }
+          if (!paired && !trusted)
             continue;
 
           string? name = null;

@@ -128,32 +128,38 @@ if command -v systemctl >/dev/null 2>&1 && ! systemctl is-active --quiet bluetoo
 fi
 bluetoothctl power on >/dev/null 2>&1 || true
 
-# --- 2. pair the R10 if needed ------------------------------------------------
-paired_mac() {
-  # Prints the MAC of a paired device matching DEVICE_NAME, or nothing.
-  bluetoothctl devices Paired 2>/dev/null | grep -F " $DEVICE_NAME" | head -n1 | awk '{print $2}'
+# --- 2. make sure the R10 is set up -------------------------------------------
+find_mac() {
+  # MAC of a known device matching DEVICE_NAME (whether or not it's bonded).
+  bluetoothctl devices 2>/dev/null | grep -F " $DEVICE_NAME" | head -n1 | awk '{print $2}'
+}
+is_ready() {
+  # The R10 works once it's paired OR trusted; it often connects without bonding.
+  [[ -n "$1" ]] && bluetoothctl info "$1" 2>/dev/null | grep -qE "Paired: yes|Trusted: yes"
 }
 
-MAC="$(paired_mac)"
-if [[ -n "$MAC" ]]; then
-  ok "'$DEVICE_NAME' already paired ($MAC)."
+MAC="$(find_mac)"
+if is_ready "$MAC"; then
+  ok "'$DEVICE_NAME' already set up ($MAC)."
 else
-  warn "'$DEVICE_NAME' is not paired yet."
-  info "Make sure the R10 is powered on and awake, then press Enter to scan..."
+  warn "'$DEVICE_NAME' is not set up yet."
+  info "Make sure the R10 is powered on and awake (and NOT connected to the Garmin"
+  info "phone app), then press Enter to scan..."
   read -r _
 
   info "Scanning for ~20s..."
   bluetoothctl --timeout 20 scan on >/dev/null 2>&1 || true
 
-  MAC="$(bluetoothctl devices 2>/dev/null | grep -F " $DEVICE_NAME" | head -n1 | awk '{print $2}')"
+  MAC="$(find_mac)"
   if [[ -z "$MAC" ]]; then
     err "Did not find '$DEVICE_NAME' nearby."
-    err "Check the R10 is on/awake, and that its name matches bluetoothDeviceName in settings.json."
+    err "Check the R10 is on/awake, not held by the Garmin phone app, and that its"
+    err "name matches bluetoothDeviceName in settings.json."
     exit 1
   fi
 
-  info "Found $MAC. Pairing + trusting..."
-  # Pair inside a single bluetoothctl session with an agent registered. The R10
+  info "Found $MAC. Pairing, trusting, connecting..."
+  # Do it all inside ONE bluetoothctl session with an agent registered. The R10
   # uses "Just Works" pairing (no PIN), which needs an agent; separate one-shot
   # `bluetoothctl pair` calls have none and fail silently.
   {
@@ -162,14 +168,18 @@ else
     echo "default-agent"; sleep 1
     echo "pair $MAC";     sleep 8
     echo "trust $MAC";    sleep 2
+    echo "connect $MAC";  sleep 3
     echo "quit"
   } | bluetoothctl >/dev/null 2>&1 || true
 
-  if [[ -n "$(paired_mac)" ]]; then
-    ok "Paired and trusted '$DEVICE_NAME' ($MAC)."
+  if is_ready "$MAC"; then
+    ok "'$DEVICE_NAME' set up ($MAC)."
   else
-    err "Pairing did not complete. Try manually:  bluetoothctl -> pair $MAC / trust $MAC"
-    exit 1
+    # Not fatal: the R10 frequently connects without a full bond. Trust it and
+    # let the bridge connect anyway.
+    bluetoothctl trust "$MAC" >/dev/null 2>&1 || true
+    warn "Could not confirm bonding, but the R10 usually connects without it."
+    warn "Trusted $MAC and continuing; the bridge will try to connect."
   fi
 fi
 
