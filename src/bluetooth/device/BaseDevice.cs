@@ -1,5 +1,5 @@
 using Google.Protobuf;
-using InTheHand.Bluetooth;
+using r10_bridge.bluetooth.ble;
 using System.Linq;
 using System.Text;
 using LaunchMonitor.Proto;
@@ -176,7 +176,8 @@ namespace r10_bridge.bluetooth
     {
       while (!mCancellationToken.IsCancellationRequested)
         if (mWriterQueue.Count > 0)
-          mGattWriter?.WriteValueWithResponseAsync(mWriterQueue.Dequeue());
+          // Block until each chunk is written so BLE frames reach the device in order.
+          mGattWriter?.WriteValueWithResponseAsync(mWriterQueue.Dequeue()).Wait();
         else
           mWriterSignal.WaitOne(5000);
     }

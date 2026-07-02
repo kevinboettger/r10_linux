@@ -2,14 +2,14 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7.0-windows10.0.19041</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>r10_bridge</RootNamespace>
     <AssemblyName>r10-bridge</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <ApplicationIcon>icon.ico</ApplicationIcon>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <VersionPrefix>2.1.1</VersionPrefix>
+    <!-- Target Raspberry Pi (64-bit Raspberry Pi OS / Ubuntu). linux-x64 kept for local testing. -->
+    <RuntimeIdentifiers>linux-arm64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,9 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
     <PackageReference Include="NetCoreServer" Version="7.0.0" />
-    <PackageReference Include="InTheHand.BluetoothLE" Version="4.0.33" />
+    <!-- Linux BLE via BlueZ over D-Bus (replaces the Windows-only InTheHand.BluetoothLE). -->
+    <PackageReference Include="Linux.Bluetooth" Version="5.67.1" />
     <PackageReference Include="Google.Protobuf" Version="3.22.1" />
     <PackageReference Include="Grpc.Tools" Version="2.53.0">
       <IncludeAssets>build; buildtransitive</IncludeAssets>
@@ -32,5 +33,3 @@
   </ItemGroup>
 
 </Project>
-
-

@@ -1,6 +1,8 @@
 ## R10 Bridge — README & Developer Guide
 
-R10 Bridge is a local Windows service that connects to a Garmin Approach R10 over Bluetooth LE and exposes the device’s shot data through two simple local interfaces: a JSON HTTP API and a newline-delimited JSON TCP stream. Use it to integrate the R10 with simulators, analytics tools, or custom apps on the same machine.
+R10 Bridge is a local service that connects to a Garmin Approach R10 over Bluetooth LE and exposes the device’s shot data through two simple local interfaces: a JSON HTTP API and a newline-delimited JSON TCP stream. Use it to integrate the R10 with simulators, analytics tools, or custom apps on the same machine.
+
+It runs on **Linux (including the Raspberry Pi, ARM64)** using BlueZ over D-Bus for Bluetooth. It is built as a cross-platform .NET 8 application; the primary/target build is `linux-arm64`.
 
 ### What this service does
 
@@ -79,7 +81,7 @@ Configuration lives in `settings.json` and is loaded at startup. Defaults are sa
 
 Notes:
 - Bluetooth
-  - The device must be paired in the OS first. `bluetoothDeviceName` must match the Windows paired device name.
+  - The device must be paired with the OS first (via BlueZ / `bluetoothctl` — see "Pairing the R10" below). `bluetoothDeviceName` must match the paired device name reported by BlueZ.
   - `autoWake`: if the device is in standby, the service attempts to wake it automatically.
   - `calibrateTiltOnConnect`: optional recalibration at session start.
   - Environment parameters (`temperature`, `humidity`, `altitude`, `airDensity`, `teeDistanceInFeet`) are sent to the device to improve measurement accuracy.
@@ -324,30 +326,109 @@ Protobuf and BLE framing overview:
 
 ---
 
-## Build, Run, and Packaging
+## Build, Run, and Packaging (Raspberry Pi / Linux)
 
-Requirements:
-- Windows 10/11, .NET 7 runtime/SDK, Bluetooth hardware.
-- R10 must be paired in Windows beforehand.
+### Requirements
 
-Build:
-- Visual Studio: open the solution and build `r10-bridge` (Win x64).
-- CLI (debug quick run):
-  - `dotnet publish -c Debug -r win-x64`
-- CLI (production, self-contained single-file):
-  - `dotnet publish -c Release -r win-x64 -p:PublishSingleFile=true -p:PublishTrimmed=true --self-contained true`
-  - Output in `bin/Release/net7.0-windows10.0.19041/win-x64/publish/`
+**Target (the Pi that runs the bridge):**
+- A 64-bit OS (Raspberry Pi OS 64-bit or Ubuntu for ARM). The build is `linux-arm64`.
+- BlueZ and its D-Bus service (`bluez`, shipped by default on Raspberry Pi OS). Verify with `bluetoothctl --version`.
+- A Bluetooth LE controller (the Pi 3/4/5 built-in radio works).
+- The Garmin Approach R10, paired and trusted beforehand (see below).
+- If you build a **self-contained** package, the Pi needs **no .NET install**. If you build framework-dependent, install the **.NET 8 runtime** on the Pi.
 
-Run:
-1) Ensure `settings.json` is present next to the executable and configure as needed.
-2) Start the app. You should see logs indicating HTTP/TCP startup and Bluetooth connection attempts.
-3) Visit `http://127.0.0.1:5001/` (or configured port) to view the dashboard.
+**Build machine (can be any x64/arm64 Linux, macOS, or Windows):**
+- .NET 8 SDK. `dotnet publish` cross-compiles to `linux-arm64` from any host — you do not need to build on the Pi.
+
+### Build
+
+Self-contained, single-file `linux-arm64` (recommended — bundles the runtime):
+```bash
+dotnet publish -c Release -r linux-arm64 --self-contained true \
+  -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false
+# Output: bin/Release/net8.0/linux-arm64/publish/  (r10-bridge + settings.json)
+```
+
+Or use the helper script, which also produces zipped artifacts under `publish/`:
+```bash
+./build/publish-linux-arm64.sh
+```
+
+Framework-dependent (smaller; requires the .NET 8 runtime on the Pi):
+```bash
+dotnet publish -c Release -r linux-arm64 --self-contained false
+```
+
+Local quick run on your dev machine (x64):
+```bash
+dotnet run          # HTTP/TCP start immediately; Bluetooth needs BlueZ + an R10
+```
+
+### Pairing the R10 (one-time, on the Pi)
+
+Bluetooth pairing is an OS responsibility; the bridge only connects to an already-paired device.
+
+```bash
+sudo systemctl enable --now bluetooth      # ensure BlueZ is running
+bluetoothctl
+# In the bluetoothctl prompt:
+power on
+agent on
+default-agent
+scan on                 # wake the R10, then wait for "Approach R10" to appear
+scan off
+pair    <MAC>           # e.g. pair AA:BB:CC:DD:EE:FF
+trust   <MAC>           # trust so it reconnects automatically
+quit
+```
+
+Confirm the device name BlueZ reports (`Name`/`Alias`) matches `bluetoothDeviceName` in `settings.json` (default `Approach R10`). The bridge itself does the GATT connect/reconnect — you do **not** need to `connect` in `bluetoothctl`.
+
+### Run
+
+1) Copy the publish folder to the Pi and ensure `settings.json` sits next to the `r10-bridge` executable.
+2) Make it executable and start it:
+   ```bash
+   chmod +x r10-bridge
+   ./r10-bridge
+   ```
+   You should see logs for HTTP/TCP startup and Bluetooth connection attempts. If BlueZ can’t be reached, the bridge logs a clear message and keeps the HTTP/TCP servers running.
+3) Visit `http://127.0.0.1:5001/` (or the configured port) for the dashboard.
 4) Connect a TCP client to `127.0.0.1:5510` to receive live shot JSON.
 
-Packaging:
-- Preferred: self-contained publish (above) to distribute a single-folder app that includes the .NET runtime.
-- Scripts: `build/publish-win64-selfcontained.sh` and `build/publish-win64-dotnet.sh` are provided; the former bundles the runtime, the latter targets machines with .NET installed.
-- Include `settings.json` alongside the executable in your package.
+Note: the R10 exposes standard BLE GATT services, so no special permissions are usually required. If GATT access is denied, ensure your user can talk to BlueZ over the D-Bus system bus (typically membership in the `bluetooth` group), or run under a user that can.
+
+### Run as a service (optional, systemd)
+
+Create `/etc/systemd/system/r10-bridge.service`:
+```ini
+[Unit]
+Description=R10 Bridge
+After=bluetooth.target
+Wants=bluetooth.target
+
+[Service]
+WorkingDirectory=/opt/r10-bridge
+ExecStart=/opt/r10-bridge/r10-bridge
+Restart=on-failure
+# The default settings.json binds HTTP/TCP to localhost only.
+
+[Install]
+WantedBy=multi-user.target
+```
+Then:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now r10-bridge
+journalctl -u r10-bridge -f     # follow logs
+```
+Note: the app reads `settings.json` from its working directory, so `WorkingDirectory` must point at the install folder. Running as a service is non-interactive; the "press enter to close" prompt is only for foreground runs.
+
+### Packaging
+
+- Preferred: self-contained publish (above) to distribute a single-folder app that includes the .NET runtime — nothing to install on the Pi.
+- Script: `build/publish-linux-arm64.sh` bundles the runtime and emits two zips under `publish/` (Bluetooth-enabled and a Bluetooth-disabled variant for HTTP/TCP-only testing).
+- Always include `settings.json` alongside the executable in your package.
 
 ---
 

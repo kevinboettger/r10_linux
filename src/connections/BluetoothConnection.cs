@@ -1,5 +1,5 @@
 using r10_bridge.Api;
-using InTheHand.Bluetooth;
+using r10_bridge.bluetooth.ble;
 using LaunchMonitor.Proto;
 using r10_bridge.bluetooth;
 using Microsoft.Extensions.Configuration;

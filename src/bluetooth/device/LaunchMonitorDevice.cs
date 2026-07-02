@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using InTheHand.Bluetooth;
+using r10_bridge.bluetooth.ble;
 using LaunchMonitor.Proto;
 using static LaunchMonitor.Proto.State.Types;
 using static LaunchMonitor.Proto.SubscribeResponse.Types;
