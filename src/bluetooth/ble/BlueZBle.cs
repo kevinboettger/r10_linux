@@ -209,13 +209,13 @@ namespace r10_bridge.bluetooth.ble
     // BlueZ delivers writes over a single D-Bus connection; serialize them so the
     // framed BLE chunks reach the device in the order they were queued.
     private readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1, 1);
+    private bool _notifying;
 
     public event EventHandler<GattCharacteristicValueChangedEventArgs>? CharacteristicValueChanged;
 
     internal GattCharacteristic(Linux.Bluetooth.GattCharacteristic native)
     {
       _native = native;
-      _native.Value += OnNativeValue;
     }
 
     private Task OnNativeValue(Linux.Bluetooth.GattCharacteristic sender, GattCharacteristicValueEventArgs e)
@@ -239,7 +239,19 @@ namespace r10_bridge.bluetooth.ble
       }
     }
 
-    public Task StartNotificationsAsync() => _native.StartNotifyAsync();
+    public Task StartNotificationsAsync()
+    {
+      // Wire BlueZ value notifications lazily — only when the caller actually wants
+      // them. Subscribing in the constructor would trigger org.bluez.Error.NotSupported
+      // on read-only / write-only characteristics that can't notify (serial, firmware,
+      // model, the interface writer), producing harmless-but-noisy errors.
+      if (!_notifying)
+      {
+        _notifying = true;
+        _native.Value += OnNativeValue;
+      }
+      return _native.StartNotifyAsync();
+    }
   }
 
   /// <summary>
