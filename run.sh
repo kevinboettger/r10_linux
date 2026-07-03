@@ -299,13 +299,24 @@ fi
 
 info "Starting R10 Bridge (Ctrl-C or Enter to stop). Logs also saved under ./logs/"
 echo
-if [[ -x "$SCRIPT_DIR/r10-bridge" ]]; then
-  exec "$SCRIPT_DIR/r10-bridge"
+# dotnet is often installed under ~/.dotnet and not on PATH in every shell — add it.
+if ! command -v dotnet >/dev/null 2>&1 && [[ -x "$HOME/.dotnet/dotnet" ]]; then
+  export PATH="$HOME/.dotnet:$PATH"
+fi
+
+# Find a runnable bridge: a published binary (fast, no SDK needed), else `dotnet run`.
+bridge_bin=""
+for cand in "$SCRIPT_DIR/r10-bridge" "$SCRIPT_DIR/.publish/r10-bridge" "/opt/r10-bridge/r10-bridge"; do
+  [[ -x "$cand" ]] && { bridge_bin="$cand"; break; }
+done
+
+if [[ -n "$bridge_bin" ]]; then
+  cd "$(dirname "$bridge_bin")"   # run beside its settings.json / logs
+  exec "$bridge_bin"
 elif command -v dotnet >/dev/null 2>&1 && ls "$SCRIPT_DIR"/*.csproj >/dev/null 2>&1; then
-  # dev fallback: no published binary here, run from source
-  exec dotnet run -c Release
+  exec dotnet run -c Release --project "$SCRIPT_DIR"
 else
-  err "No 'r10-bridge' binary next to this script, and no .csproj to run from source."
-  err "Build first:  ./build/publish-linux-arm64.sh   (then run this from the publish folder)"
+  err "Couldn't find a way to run the bridge (no built binary, and no dotnet on PATH)."
+  err "Fix: install .NET 8, or run  ./build/publish-linux-arm64.sh  once to build it."
   exit 1
 fi
