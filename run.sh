@@ -304,19 +304,21 @@ if ! command -v dotnet >/dev/null 2>&1 && [[ -x "$HOME/.dotnet/dotnet" ]]; then
   export PATH="$HOME/.dotnet:$PATH"
 fi
 
-# Find a runnable bridge: a published binary (fast, no SDK needed), else `dotnet run`.
-bridge_bin=""
+# Prefer running from source so it's always the latest code you pulled. Only fall
+# back to a prebuilt binary if the .NET SDK isn't available — a stale binary can
+# be older than the source and behave differently (e.g. miss the trusted-device fix).
+if command -v dotnet >/dev/null 2>&1 && ls "$SCRIPT_DIR"/*.csproj >/dev/null 2>&1; then
+  exec dotnet run -c Release --project "$SCRIPT_DIR"
+fi
+
 for cand in "$SCRIPT_DIR/r10-bridge" "$SCRIPT_DIR/.publish/r10-bridge" "/opt/r10-bridge/r10-bridge"; do
-  [[ -x "$cand" ]] && { bridge_bin="$cand"; break; }
+  if [[ -x "$cand" ]]; then
+    warn "No .NET SDK found; running prebuilt binary $cand (may be older than source)."
+    cd "$(dirname "$cand")"
+    exec "$cand"
+  fi
 done
 
-if [[ -n "$bridge_bin" ]]; then
-  cd "$(dirname "$bridge_bin")"   # run beside its settings.json / logs
-  exec "$bridge_bin"
-elif command -v dotnet >/dev/null 2>&1 && ls "$SCRIPT_DIR"/*.csproj >/dev/null 2>&1; then
-  exec dotnet run -c Release --project "$SCRIPT_DIR"
-else
-  err "Couldn't find a way to run the bridge (no built binary, and no dotnet on PATH)."
-  err "Fix: install .NET 8, or run  ./build/publish-linux-arm64.sh  once to build it."
-  exit 1
-fi
+err "Couldn't find a way to run the bridge (no dotnet on PATH and no built binary)."
+err "Fix: install .NET 8, or run  ./build/publish-linux-arm64.sh  once to build it."
+exit 1
