@@ -1,17 +1,19 @@
 #!/bin/bash
 # One-shot launcher for the R10 Bridge on a Raspberry Pi / Linux.
 #
-#   ./run.sh                    Pair the R10 if needed, then run in the foreground.
-#   ./run.sh --install-service  Build a standalone binary and install a systemd
-#                               service so the bridge auto-starts on boot.
+#   ./run.sh                    Connect the R10 (pair if needed) and run the bridge.
+#   ./run.sh --reset            Fresh session: remove the old R10, re-pair it (put
+#                               it in pairing mode), connect, and launch. This is
+#                               what the desktop icon runs.
+#   ./run.sh --install-icon     Put an "R10 Bridge" icon on the desktop.
+#   ./run.sh --install-service  Install a systemd service that starts on boot.
+#   ./run.sh --fix-bluez        One-time: stop BlueZ caching GATT services (fixes
+#                               the "no usable services" error after the R10 sleeps).
 #
-# Plain run will:
+# Typical run:
 #   1. Make sure the BlueZ bluetooth service is running.
-#   2. Pair + trust the R10 automatically if it isn't already paired
-#      (using the device name from settings.json). Turn the R10 on first.
+#   2. Pair + trust the R10 (using the device name from settings.json).
 #   3. Launch the bridge (HTTP API + TCP shot stream).
-#
-# Re-run it any time. If the R10 is already paired it skips straight to launch.
 
 set -uo pipefail
 
@@ -24,9 +26,10 @@ case "${1:-}" in
   --install-service)  MODE="install" ;;
   --install-icon)     MODE="icon" ;;
   --reset)            MODE="reset" ;;
+  --fix-bluez)        MODE="fixbluez" ;;
   *)
     echo "Unknown option: $1"
-    echo "Usage: ./run.sh [--install-service] [--install-icon] [--reset]"
+    echo "Usage: ./run.sh [--install-service] [--install-icon] [--reset] [--fix-bluez]"
     exit 2
     ;;
 esac
@@ -127,8 +130,9 @@ install_icon() {
   mkdir -p "$(dirname "$wrapper")"
   cat > "$wrapper" <<WRAPEOF
 #!/bin/bash
+# Each session: remove the old R10, re-pair it (in pairing mode), connect, launch.
 cd "$SCRIPT_DIR" || exit 1
-./run.sh
+./run.sh --reset
 echo
 read -n1 -s -r -p "Press any key to close this window..."
 WRAPEOF
@@ -158,6 +162,32 @@ ICONEOF
 
 if [[ "$MODE" == "icon" ]]; then
   install_icon
+  exit 0
+fi
+
+# --- BlueZ GATT-cache fix (one-time) ------------------------------------------
+# Makes BlueZ re-discover the R10's services on every connect instead of serving
+# a stale cache, which is what causes "connection failed - no usable services".
+fix_bluez() {
+  local conf="/etc/bluetooth/main.conf"
+  if [[ ! -f "$conf" ]]; then
+    err "$conf not found; is BlueZ installed?"
+    exit 1
+  fi
+  info "Setting BlueZ GATT Cache = no ..."
+  if grep -qE '^[[:space:]]*#?[[:space:]]*Cache[[:space:]]*=' "$conf"; then
+    sudo sed -i -E 's|^[[:space:]]*#?[[:space:]]*Cache[[:space:]]*=.*|Cache = no|' "$conf"
+  elif grep -qE '^[[:space:]]*\[GATT\]' "$conf"; then
+    sudo sed -i '/^[[:space:]]*\[GATT\]/a Cache = no' "$conf"
+  else
+    printf '\n[GATT]\nCache = no\n' | sudo tee -a "$conf" >/dev/null
+  fi
+  sudo systemctl restart bluetooth >/dev/null 2>&1 || true
+  ok "Done — BlueZ will re-discover services every connect (fixes 'no usable services')."
+}
+
+if [[ "$MODE" == "fixbluez" ]]; then
+  fix_bluez
   exit 0
 fi
 
@@ -213,10 +243,14 @@ MAC="$(find_mac)"
 if is_ready "$MAC"; then
   ok "'$DEVICE_NAME' already set up ($MAC)."
 else
-  warn "'$DEVICE_NAME' is not set up yet."
-  info "Make sure the R10 is powered on and awake (and NOT connected to the Garmin"
-  info "phone app), then press Enter to scan..."
-  read -r _
+  if [[ "$MODE" == "reset" ]]; then
+    info "Put the R10 in pairing mode. Scanning now..."
+  else
+    warn "'$DEVICE_NAME' is not set up yet."
+    info "Make sure the R10 is powered on and awake (and NOT connected to the Garmin"
+    info "phone app), then press Enter to scan..."
+    read -r _
+  fi
 
   info "Scanning for ~20s..."
   bluetoothctl --timeout 20 scan on >/dev/null 2>&1 || true
