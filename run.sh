@@ -23,9 +23,10 @@ case "${1:-}" in
   "")                 MODE="run" ;;
   --install-service)  MODE="install" ;;
   --install-icon)     MODE="icon" ;;
+  --reset)            MODE="reset" ;;
   *)
     echo "Unknown option: $1"
-    echo "Usage: ./run.sh [--install-service] [--install-icon]"
+    echo "Usage: ./run.sh [--install-service] [--install-icon] [--reset]"
     exit 2
     ;;
 esac
@@ -190,6 +191,23 @@ is_ready() {
   # The R10 works once it's paired OR trusted; it often connects without bonding.
   [[ -n "$1" ]] && bluetoothctl info "$1" 2>/dev/null | grep -qE "Paired: yes|Trusted: yes"
 }
+
+# --reset: clear stale BlueZ pairing + GATT cache, then reconnect from scratch.
+# Fixes "connection failed - no usable services" after the R10 sleeps/reboots.
+if [[ "$MODE" == "reset" ]]; then
+  warn "Resetting Bluetooth state for '$DEVICE_NAME' (clearing stale pairing/cache)..."
+  reset_mac="$(find_mac)"
+  if [[ -n "$reset_mac" ]]; then
+    bluetoothctl disconnect "$reset_mac" >/dev/null 2>&1 || true
+    bluetoothctl remove "$reset_mac"     >/dev/null 2>&1 || true
+    ctrl="$(bluetoothctl list 2>/dev/null | head -n1 | awk '{print $2}')"
+    [[ -n "$ctrl" ]] && sudo rm -rf "/var/lib/bluetooth/$ctrl/$reset_mac" 2>/dev/null || true
+  fi
+  sudo systemctl restart bluetooth >/dev/null 2>&1 || true
+  sleep 2
+  bluetoothctl power on >/dev/null 2>&1 || true
+  ok "Reset complete — scanning and reconnecting fresh."
+fi
 
 MAC="$(find_mac)"
 if is_ready "$MAC"; then
