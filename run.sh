@@ -244,7 +244,7 @@ if [[ "$MODE" == "reset" ]]; then
     fi
   fi
   sudo systemctl restart bluetooth >/dev/null 2>&1 || true
-  sleep 2
+  sleep 4   # give the adapter time to come back before scanning
   bluetoothctl power on >/dev/null 2>&1 || true
   ok "Reset complete — scanning and reconnecting fresh."
 fi
@@ -262,14 +262,22 @@ else
     read -r _
   fi
 
-  info "Scanning for ~20s..."
-  bluetoothctl --timeout 20 scan on >/dev/null 2>&1 || true
+  # The R10 advertises intermittently (especially in pairing mode), so scan in
+  # several passes and keep checking rather than relying on one window.
+  MAC=""
+  for attempt in 1 2 3 4; do
+    info "Scanning for the R10 (pass $attempt/4, ~15s)..."
+    bluetoothctl --timeout 15 scan on >/dev/null 2>&1 || true
+    MAC="$(find_mac)"
+    [[ -n "$MAC" ]] && break
+    warn "Not seen yet — keep the R10 awake and in pairing mode."
+    sleep 2
+  done
 
-  MAC="$(find_mac)"
   if [[ -z "$MAC" ]]; then
-    err "Did not find '$DEVICE_NAME' nearby."
-    err "Check the R10 is on/awake, not held by the Garmin phone app, and that its"
-    err "name matches bluetoothDeviceName in settings.json."
+    err "Did not find '$DEVICE_NAME' after several scans."
+    err "Make sure the R10 is awake and in pairing mode, not held by the Garmin"
+    err "phone app, and that its name matches bluetoothDeviceName in settings.json."
     exit 1
   fi
 
