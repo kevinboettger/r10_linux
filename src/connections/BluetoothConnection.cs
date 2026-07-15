@@ -40,7 +40,7 @@ namespace r10_bridge
         return;
       }
 
-      do
+      while (true)
       {
         BluetoothLogger.Info($"Connecting to {Device.Name}: {Device.Id}");
         Device.Gatt.ConnectAsync().Wait();
@@ -49,14 +49,25 @@ namespace r10_bridge
         {
           BluetoothLogger.Info($"Could not connect to bluetooth device. Waiting {ReconnectInterval} seconds before trying again");
           Thread.Sleep(TimeSpan.FromSeconds(ReconnectInterval));
+          continue;
         }
+
+        BluetoothLogger.Info($"Connected to Launch Monitor");
+        LaunchMonitor = SetupLaunchMonitor(Device);
+        if (LaunchMonitor == null)
+        {
+          // Handshake/GATT setup failed (often a transient or stale-cache ATT error).
+          // Drop the link and retry the whole connect+setup so it self-heals.
+          BluetoothLogger.Error($"Device setup/handshake failed. Disconnecting and retrying in {ReconnectInterval} seconds.");
+          try { Device.Gatt.Disconnect(); } catch { }
+          Thread.Sleep(TimeSpan.FromSeconds(ReconnectInterval));
+          continue;
+        }
+
+        break;
       }
-      while (!Device.Gatt.IsConnected);
 
       Device.Gatt.AutoConnect = true;
-
-      BluetoothLogger.Info($"Connected to Launch Monitor");
-      LaunchMonitor = SetupLaunchMonitor(Device);
       Device.GattServerDisconnected += OnDeviceDisconnected;
     }
 
