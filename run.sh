@@ -184,8 +184,11 @@ fix_bluez() {
   else
     printf '\n[GATT]\nCache = no\n' | sudo tee -a "$conf" >/dev/null
   fi
+  # Wipe any stale cached GATT layouts so the change takes effect immediately.
+  sudo rm -rf /var/lib/bluetooth/*/cache/* 2>/dev/null || true
   sudo systemctl restart bluetooth >/dev/null 2>&1 || true
-  ok "Done — BlueZ will re-discover services every connect (fixes 'no usable services')."
+  ok "Done — GATT cache cleared and BlueZ will re-discover services every connect."
+  info "This fixes 'no usable services' and 'ATT error 0x0e' after re-pairing."
 }
 
 if [[ "$MODE" == "fixbluez" ]]; then
@@ -233,7 +236,12 @@ if [[ "$MODE" == "reset" ]]; then
     bluetoothctl disconnect "$reset_mac" >/dev/null 2>&1 || true
     bluetoothctl remove "$reset_mac"     >/dev/null 2>&1 || true
     ctrl="$(bluetoothctl list 2>/dev/null | head -n1 | awk '{print $2}')"
-    [[ -n "$ctrl" ]] && sudo rm -rf "/var/lib/bluetooth/$ctrl/$reset_mac" 2>/dev/null || true
+    if [[ -n "$ctrl" ]]; then
+      sudo rm -rf "/var/lib/bluetooth/$ctrl/$reset_mac" 2>/dev/null || true
+      # BlueZ keeps the GATT service cache in a SEPARATE cache/ dir — clearing only
+      # the device dir leaves a stale layout behind (causes ATT 0x0e on subscribe).
+      sudo rm -f "/var/lib/bluetooth/$ctrl/cache/$reset_mac" 2>/dev/null || true
+    fi
   fi
   sudo systemctl restart bluetooth >/dev/null 2>&1 || true
   sleep 2
