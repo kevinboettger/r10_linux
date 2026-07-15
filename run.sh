@@ -317,6 +317,20 @@ if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet r10-bridg
   sudo systemctl stop r10-bridge
 fi
 
+# Establish the BLE link with bluetoothctl first — it connects reliably where the
+# bridge's own connect has been flaky. The bridge then reuses the live link.
+if [[ -n "${MAC:-}" ]]; then
+  info "Connecting to the R10 ($MAC)..."
+  for i in 1 2 3 4 5; do
+    if bluetoothctl info "$MAC" 2>/dev/null | grep -q "Connected: yes"; then
+      ok "Link established."
+      break
+    fi
+    bluetoothctl connect "$MAC" >/dev/null 2>&1 || true
+    sleep 3
+  done
+fi
+
 info "Starting R10 Bridge (Ctrl-C or Enter to stop). Logs also saved under ./logs/"
 echo
 # dotnet is often installed under ~/.dotnet and not on PATH in every shell — add it.
