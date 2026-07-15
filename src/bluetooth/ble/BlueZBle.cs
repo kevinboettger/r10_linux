@@ -150,7 +150,16 @@ namespace r10_bridge.bluetooth.ble
     {
       try
       {
-        await _device.Native.ConnectAsync();
+        // Don't treat an existing link (e.g. one left over from bluetoothctl) as a
+        // failure — reuse it and just wait for services.
+        bool alreadyConnected = false;
+        try { alreadyConnected = await _device.Native.GetConnectedAsync(); } catch { /* ignore */ }
+
+        if (!alreadyConnected)
+        {
+          try { await _device.Native.ConnectAsync(); } catch { /* may already be connecting */ }
+        }
+
         // BlueZ resolves GATT asynchronously after the link is up; wait for both so the
         // subsequent GetPrimaryService/GetCharacteristic calls can succeed.
         await _device.Native.WaitForPropertyValueAsync("Connected", value: true, ConnectTimeout);

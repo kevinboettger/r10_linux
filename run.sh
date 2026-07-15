@@ -130,9 +130,11 @@ install_icon() {
   mkdir -p "$(dirname "$wrapper")"
   cat > "$wrapper" <<WRAPEOF
 #!/bin/bash
-# Each session: remove the old R10, re-pair it (in pairing mode), connect, launch.
+# Turn the R10 on normally (NOT pairing mode) and double-click this — it connects
+# the already-trusted R10 and starts the bridge. If it ever won't connect, run
+# './run.sh --reset' once from a terminal to re-pair from scratch.
 cd "$SCRIPT_DIR" || exit 1
-./run.sh --reset
+./run.sh
 echo
 read -n1 -s -r -p "Press any key to close this window..."
 WRAPEOF
@@ -271,11 +273,13 @@ else
     echo "power on";      sleep 1
     echo "agent on";      sleep 1
     echo "default-agent"; sleep 1
-    echo "pair $MAC";     sleep 8
-    echo "trust $MAC";    sleep 2
-    echo "connect $MAC";  sleep 3
+    echo "pair $MAC";       sleep 8
+    echo "trust $MAC";      sleep 2
+    echo "disconnect $MAC"; sleep 2
     echo "quit"
   } | bluetoothctl >/dev/null 2>&1 || true
+  # Leave the device disconnected so the bridge owns the connection (avoids a
+  # double-connect that makes the bridge time out waiting for services).
 
   if is_ready "$MAC"; then
     ok "'$DEVICE_NAME' set up ($MAC)."
