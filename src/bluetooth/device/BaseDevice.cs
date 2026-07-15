@@ -176,8 +176,19 @@ namespace r10_bridge.bluetooth
     {
       while (!mCancellationToken.IsCancellationRequested)
         if (mWriterQueue.Count > 0)
-          // Block until each chunk is written so BLE frames reach the device in order.
-          mGattWriter?.WriteValueWithResponseAsync(mWriterQueue.Dequeue()).Wait();
+        {
+          try
+          {
+            // Block until each chunk is written so BLE frames reach the device in
+            // order. Bounded + guarded so a dropped link can't hang this thread
+            // (which would otherwise stall disconnect cleanup and reconnect).
+            mGattWriter?.WriteValueWithResponseAsync(mWriterQueue.Dequeue()).Wait(TimeSpan.FromSeconds(5));
+          }
+          catch
+          {
+            // Link likely dropped mid-write; keep looping so cancellation is honoured.
+          }
+        }
         else
           mWriterSignal.WaitOne(5000);
     }
@@ -350,9 +361,11 @@ namespace r10_bridge.bluetooth
         if (disposing)
         {
           mCancellationToken.Cancel();
-          mWriterTask.Wait();
-          mReaderTask.Wait();
-          mMsgProcessingTask.Wait();
+          // Bounded waits: never let a stuck worker thread block cleanup (and thus
+          // the reconnect that follows a lost connection).
+          try { mWriterTask.Wait(TimeSpan.FromSeconds(3)); } catch { }
+          try { mReaderTask.Wait(TimeSpan.FromSeconds(3)); } catch { }
+          try { mMsgProcessingTask.Wait(TimeSpan.FromSeconds(3)); } catch { }
 
           foreach (var d in MessageSent?.GetInvocationList() ?? Array.Empty<Delegate>())
             MessageSent -= (d as MessageEventHandler);

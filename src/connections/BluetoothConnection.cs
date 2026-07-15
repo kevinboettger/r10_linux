@@ -65,8 +65,11 @@ namespace r10_bridge
       BluetoothLogger.Error("Lost bluetooth connection");
       if (Device != null)
         Device.GattServerDisconnected -= OnDeviceDisconnected;
-      LaunchMonitor?.Dispose();
 
+      try { LaunchMonitor?.Dispose(); }
+      catch (Exception e) { BluetoothLogger.Error($"Error cleaning up after disconnect: {e.Message}"); }
+
+      BluetoothLogger.Info($"Will retry the connection every {ReconnectInterval}s (wake the R10 / keep it in range).");
       Task.Run(ConnectToDevice);
     }
 
