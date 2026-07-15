@@ -286,10 +286,12 @@ else
   # uses "Just Works" pairing (no PIN), which needs an agent; separate one-shot
   # `bluetoothctl pair` calls have none and fail silently.
   {
-    echo "power on";      sleep 1
-    echo "agent on";      sleep 1
-    echo "default-agent"; sleep 1
-    echo "pair $MAC";       sleep 8
+    echo "power on";              sleep 1
+    # NoInputNoOutput forces "Just Works" pairing (no passkey), which the R10 needs.
+    # The default agent negotiates MITM/passkey and the R10 cancels (AuthenticationCanceled).
+    echo "agent NoInputNoOutput"; sleep 1
+    echo "default-agent";         sleep 1
+    echo "pair $MAC";             sleep 8
     echo "trust $MAC";      sleep 2
     echo "disconnect $MAC"; sleep 2
     echo "quit"
