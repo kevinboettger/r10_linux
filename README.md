@@ -328,6 +328,27 @@ Protobuf and BLE framing overview:
 
 ## Build, Run, and Packaging (Raspberry Pi / Linux)
 
+### Quickstart on a fresh Raspberry Pi (one command)
+
+On a clean 64-bit Raspberry Pi OS, open a terminal and run:
+
+```bash
+sudo apt-get update && sudo apt-get install -y git
+git clone -b claude/r10-bridge-raspberry-pi-qz7e25 https://github.com/kevinboettger/r10_linux.git
+cd r10_linux
+./setup.sh
+```
+
+`setup.sh` installs the .NET 8 SDK, ensures BlueZ is running, disables BlueZ GATT
+caching (needed for a reliable R10 handshake), builds the bridge, and puts an
+**R10 Bridge** icon on the desktop. Then to use it:
+
+1. Turn the R10 on and put it in **pairing mode (solid blue)**, sitting flat.
+2. Double-click the **R10 Bridge** desktop icon (or run `./run.sh --reset`).
+
+The icon re-pairs the R10 (a real *bond*, via no-passkey "Just Works"), connects,
+and starts the bridge. The rest of this section is the manual detail behind that.
+
 ### Requirements
 
 **Target (the Pi that runs the bridge):**
